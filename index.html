@@ -6,8 +6,8 @@
 
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-rbsA2VBKQhggwzxH7pPCaAqO46MgnOM80zW1RWuH61DGLwZJEdK2Kadq2F9CUG65" crossorigin="anonymous">
 
-    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.3/css/dataTables.bootstrap5.min.css">
-    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.3/jquery.min.js"></script>
+    <!-- <link rel="stylesheet" href="https://cdn.datatables.net/1.13.3/css/dataTables.bootstrap5.min.css"> -->
+    <!-- <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.3/jquery.min.js"></script> -->
 
 
     <script type="importmap">
@@ -27,48 +27,81 @@
         import { OrbitControls } from '/js/OrbitControls.js';
         import { GLTFLoader } from '/js/GLTFLoader.js';
         import * as THREE from '/js/three.module.js';
-        
+
+    
+        const threeArea = document.getElementById('three-area');
         let scene, camera, renderer, controls, clock;
+        let axesHelper;
         let spotLight, light;
         let deltaTime = 0;
         let totalTime = 0;
 
         const loader = new GLTFLoader();
-
         // Load a glTF resource
         loader.load(
             // resource URL
-            'hex.glb',
+            '/gltf/hex.glb',
             // called when the resource is loaded
             function ( gltf ) {
-
                 scene.add( gltf.scene );
-
-                gltf.animations; // Array<THREE.AnimationClip>
-                gltf.scene; // THREE.Group
-                gltf.scenes; // Array<THREE.Group>
-                gltf.cameras; // Array<THREE.Camera>
-                gltf.asset; // Object
-
             },
             // called while loading is progressing
             function ( xhr ) {
-
                 console.log( ( xhr.loaded / xhr.total * 100 ) + '% loaded' );
-
             },
             // called when loading has errors
             function ( error ) {
-
                 console.log( 'An error happened' );
-
             }
         );
+
+        function LatLonToXYZ(coords, radius){
+            let lon   = coords[0];
+            let lat   = coords[1];
+            let phi   = ( 90 - lat ) * ( Math.PI / 180 );
+            let theta = ( lon + 180 ) * ( Math.PI / 180 );
+
+            let x = -( radius * Math.sin( phi ) * Math.cos( theta ));
+            let z =  ( radius * Math.sin( phi ) * Math.sin( theta ));
+            let y =  ( radius * Math.cos( phi ));
+
+            return new THREE.Vector3( x , y , z);
+        }
         
+        const lineMaterial = new THREE.LineBasicMaterial( { color: 0xffffff } );
 
+        function drawPolygon(polygon){
+            for(let geometry of polygon.geometry.coordinates){
+                const linePoints = [];
+                for(let item of geometry){
+                    let position = LatLonToXYZ( item, 30 );
+                    linePoints.push( position );
+                }
+                console.log(linePoints);
+                const lineGeometry = new THREE.BufferGeometry().setFromPoints( linePoints );
+                const line = new THREE.Line( lineGeometry, lineMaterial );
+                scene.add(line);
+            }
+        }
 
-        const threeArea = document.getElementById('three-area');
+        function drawMultiPolygon(MultiPolygon){
+            
+        }
 
+        function drawPolygons(polyData){
+            for(let polygon of polyData.features){
+                // console.log(polygon);
+                if(polygon.geometry.type == "Polygon"){
+                    // console.log("Polygon");
+                    drawPolygon(polygon);
+                }
+                if(polygon.geometry.type == "MultiPolygon"){
+                    drawMultiPolygon(polygon);
+                    console.log(polygon);
+                    console.log("MultiPolygon");
+                }
+            }
+        }
 
         function init(){
             clock = new THREE.Clock();
@@ -88,19 +121,24 @@
             light = new THREE.AmbientLight( 0xffffff );
             scene.add( light );
 
-            camera.position.x = 5;
-            camera.position.y = 5;
-            camera.position.z = 5;
+            camera.position.x = 30;
+            camera.position.y = 30;
+            camera.position.z = 30;
 
-            const axesHelper = new THREE.AxesHelper( 5 );
+            axesHelper = new THREE.AxesHelper( 50 );
             scene.add( axesHelper );
 
             controls = new OrbitControls( camera, renderer.domElement );
 
-            const geometry = new THREE.BoxGeometry( 1, 1, 1 );
-            const material = new THREE.MeshBasicMaterial( {color: 0x00ff00} );
-            const cube = new THREE.Mesh( geometry, material );
-            scene.add( cube );
+                        // Replace ./data.json with your JSON feed
+            fetch('./geojson/land.json', { cache: "force-cache" }).then(response => {
+                    return response.json();
+                }).then(data => {
+                    console.log(data);
+                    drawPolygons(data);
+                }).catch(err => {
+            });
+
         }
         
         function animate() {
@@ -113,7 +151,6 @@
         animate();
 
         window.addEventListener('resize', onResize, false);
-
         function onResize() {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
