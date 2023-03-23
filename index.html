@@ -58,7 +58,8 @@
         loader.load(
             '/gltf/hex.glb',
             function ( gltf ) {
-                scene.add( gltf.scene );
+                const hex = gltf.scene;
+                scene.add( hex );
             },
             function ( xhr ) {
                 console.log( ( xhr.loaded / xhr.total * 100 ) + '% loaded' );
@@ -86,15 +87,16 @@
             land:       new THREE.MeshBasicMaterial( { color: 0xffffff } ),
             water:      new THREE.MeshBasicMaterial( { color: 0xdddddd } ),
             habitation: new THREE.MeshBasicMaterial( { color: 0xffff00 } ),
-            place:      new THREE.MeshBasicMaterial( { color: 0xffffaa } ),
+            place:      new THREE.MeshBasicMaterial( { color: 0xffff97 } ),
+            selected:   new THREE.MeshBasicMaterial( { color: 0xaaaaaa } ),
+            unselected: new THREE.MeshBasicMaterial( { color: 0x333333 } ),
+
         }
 
         function drawPoint(coordinates, population, type){
             let position = LatLonToXYZ( coordinates, 30 );
-            console.log(position);
             const pointGeometry = new THREE.SphereGeometry( 0.001 * Math.cbrt(population), 32, 16 );
             const point = new THREE.Mesh( pointGeometry, materials[type] );
-            console.log(point);
             point.position.set(position.x, position.y, position.z);
             scene.add(point);
         }
@@ -165,6 +167,7 @@
             const geometry = new THREE.SphereGeometry(29.9, 32, 16 );
             const material = new THREE.MeshBasicMaterial( { color: 0x222222 } );
             const backgroundSphere = new THREE.Mesh( geometry, material );
+            backgroundSphere.name = "backgroundSphere";
             scene.add( backgroundSphere );
 
             camera.position.x = 30;
@@ -178,7 +181,6 @@
             controls.dampingFactor = 10;
             controls.enablePan = false;
             controls.minDistance = 35;
-            controls.autoRotate = true;
 
         }
 
@@ -204,23 +206,59 @@
             //     }).catch(err => {
             // });
 
-            await fetch('./geojson/cities.json', { cache: "force-cache" }).then(response => {
-                    return response.json();
-                }).then(data => {
-                    drawGEOJSONPolygons(data, "habitation");
-                }).catch(err => {
-            });
+            // await fetch('./geojson/cities.json', { cache: "force-cache" }).then(response => {
+            //         return response.json();
+            //     }).then(data => {
+            //         drawGEOJSONPolygons(data, "habitation");
+            //     }).catch(err => {
+            // });
         }
+
+        let selectedList = [];
         
         function animate() {
             requestAnimationFrame( animate );
+
+            raycaster.setFromCamera( pointer, camera );
+
+            // calculate objects intersecting the picking ray
+            const intersects = raycaster.intersectObjects( scene.children );
+
+            for ( let i = 0; i < intersects.length; i ++ ) {
+                if(intersects[ i ].object.name.includes("hexasphere")){
+                    if(mousedown){
+                        console.log(selectedList)
+                        if(!selectedList.includes(intersects[ i ].object.name)){
+                            selectedList.push(intersects[ i ].object.name);
+                            intersects[ i ].object.material = materials["selected"];
+                        }
+                        else{
+                            intersects[ i ].object.material = materials["unselected"];
+
+                            selectedList.splice(selectedList.indexOf(intersects[ i ].object.name), 1);
+                        }
+
+                    }
+                }
+            }
+
             renderer.render( scene, camera );
             controls.update();
         }
+
+        const raycaster = new THREE.Raycaster();
+        const pointer = new THREE.Vector2();
         
         init();
         animate();
         loadData();
+
+        window.addEventListener( 'pointermove', event =>{
+            pointer.x = ( event.clientX / window.innerWidth ) * 2 - 1;
+            pointer.y = - ( event.clientY / window.innerHeight ) * 2 + 1;
+
+        } );
+
 
         window.addEventListener('resize', event => {
             camera.aspect = window.innerWidth / window.innerHeight;
@@ -233,6 +271,14 @@
             let scrollFactor = controls.getDistance() / 10;
             threeBackground.style.backgroundImage = '';
             threeBackground.style.backgroundImage = `radial-gradient(circle, rgba(255,255,150,1) ${0}%, rgba(0,0,0,1) ${90-scrollFactor}%)`;
+        });
+
+        let mousedown = false;
+        window.addEventListener("mousedown" , event => {
+            mousedown = true;
+        });
+        window.addEventListener("mouseup" , event => {
+            mousedown = false;
         });
 
     </script>
