@@ -13,8 +13,8 @@
     <script type="importmap">
         {
             "imports": {
-                "three": "/js/three.module.js",
-                "GLTFLoader": "/js/GLTFLoader.js"
+                "three": "../js/three.module.js",
+                "GLTFLoader": "../js/GLTFLoader.js"
             }
         }
     </script>
@@ -41,9 +41,9 @@
         <div id = "three-area"></div>
     </div>
     <script type= "module">
-        import { OrbitControls } from '/js/OrbitControls.js';
-        import { GLTFLoader } from '/js/GLTFLoader.js';
-        import * as THREE from '/js/three.module.js';
+        import { OrbitControls } from './js/OrbitControls.js';
+        import { GLTFLoader } from './js/GLTFLoader.js';
+        import * as THREE from './js/three.module.js';
 
         const threeBackground = document.getElementById('three-background');
         const threeArea = document.getElementById('three-area');
@@ -51,14 +51,20 @@
         let scene, camera, renderer, controls, clock;
         let axesHelper;
         let spotLightTop, spotLightBottom, ambientLight;
+
+        clock = new THREE.Clock();
         let deltaTime = 0;
         let totalTime = 0;
 
         const loader = new GLTFLoader();
         loader.load(
-            '/gltf/hex.glb',
+            '../gltf/hex.glb',
             function ( gltf ) {
                 const hex = gltf.scene;
+                hex.traverse(function(element) {
+                    console.log(element);
+                    element.material = materials.unselected;
+                })
                 scene.add( hex );
             },
             function ( xhr ) {
@@ -147,8 +153,6 @@
         function init(){
             threeBackground.style.backgroundImage = `radial-gradient(circle, rgba(255,255,150,1) 0%, rgba(0,0,0,1) 90%)`;
 
-            clock = new THREE.Clock();
-
             scene = new THREE.Scene();
             camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 4000 );
 
@@ -223,18 +227,29 @@
 
             // calculate objects intersecting the picking ray
             const intersects = raycaster.intersectObjects( scene.children );
+            lastPointer = pointer;
 
             for ( let i = 0; i < intersects.length; i ++ ) {
                 if(intersects[ i ].object.name.includes("hexasphere")){
                     if(mousedown){
+                        console.log(mousedownTime.getElapsedTime())
                         console.log(selectedList)
-                        if(!selectedList.includes(intersects[ i ].object.name)){
+                        console.log(pointer);
+
+                        if( !selectedList.includes(intersects[ i ].object.name) 
+                            && mousedownTime.getElapsedTime() > 0.5 
+                            && !pressRelease
+                            && Math.abs(pointer.y) < .3
+                            && Math.abs(pointer.x) < .3
+                            ){
                             selectedList.push(intersects[ i ].object.name);
                             intersects[ i ].object.material = materials["selected"];
+                            pressRelease = true;
                         }
-                        else{
+                        else if (   selectedList.includes(intersects[ i ].object.name) 
+                                    && selectedList.indexOf(intersects[ i ].object.name) != selectedList.length-1 
+                                    && !pressRelease){
                             intersects[ i ].object.material = materials["unselected"];
-
                             selectedList.splice(selectedList.indexOf(intersects[ i ].object.name), 1);
                         }
 
@@ -248,7 +263,9 @@
 
         const raycaster = new THREE.Raycaster();
         const pointer = new THREE.Vector2();
-        
+        let lastPointer;
+
+
         init();
         animate();
         loadData();
@@ -256,9 +273,7 @@
         window.addEventListener( 'pointermove', event =>{
             pointer.x = ( event.clientX / window.innerWidth ) * 2 - 1;
             pointer.y = - ( event.clientY / window.innerHeight ) * 2 + 1;
-
         } );
-
 
         window.addEventListener('resize', event => {
             camera.aspect = window.innerWidth / window.innerHeight;
@@ -274,11 +289,21 @@
         });
 
         let mousedown = false;
+        let mousedownTime = new THREE.Clock();
+        let pressRelease = false;
         window.addEventListener("mousedown" , event => {
             mousedown = true;
+            mousedownTime.start();
+            console.log("mouse down")
+
         });
+
         window.addEventListener("mouseup" , event => {
             mousedown = false;
+            mousedownTime.stop();
+            console.log("mouse up")
+            pressRelease = false;
+
         });
 
     </script>
