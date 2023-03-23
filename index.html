@@ -64,7 +64,7 @@
                 console.log( ( xhr.loaded / xhr.total * 100 ) + '% loaded' );
             },
             function ( error ) {
-                console.log( 'An error happened' );
+                console.log( 'An error occured' );
             }
         );
 
@@ -82,45 +82,68 @@
         }
         
         const lineMaterial = new THREE.MeshBasicMaterial( { color: 0xffffff } );
-        function drawLine(coordinates){
+        const materials = {
+            land:       new THREE.MeshBasicMaterial( { color: 0xffffff } ),
+            water:      new THREE.MeshBasicMaterial( { color: 0xdddddd } ),
+            habitation: new THREE.MeshBasicMaterial( { color: 0xffff00 } ),
+            place:      new THREE.MeshBasicMaterial( { color: 0xffffaa } ),
+        }
+
+        function drawPoint(coordinates, population, type){
+            let position = LatLonToXYZ( coordinates, 30 );
+            console.log(position);
+            const pointGeometry = new THREE.SphereGeometry( 0.001 * Math.cbrt(population), 32, 16 );
+            const point = new THREE.Mesh( pointGeometry, materials[type] );
+            console.log(point);
+            point.position.set(position.x, position.y, position.z);
+            scene.add(point);
+        }
+
+        function drawLine(coordinates, type){
+
             const linePoints = [];
             for(let item of coordinates){
                 let position = LatLonToXYZ( item, 30 );
                 linePoints.push( position );
             }
             const lineGeometry = new THREE.BufferGeometry().setFromPoints( linePoints );
-            const line = new THREE.Line( lineGeometry, lineMaterial );
+            const line = new THREE.Line( lineGeometry, materials[type] );
             scene.add(line);
         }
 
-        function drawPolygon(polygon){
+        function drawPolygon(polygon, type){
             for(let geometry of polygon.geometry.coordinates){
-                drawLine(geometry);
+                drawLine(geometry, type);
             }
         }
 
-        function drawMultiPolygon(MultiPolygon){
+        function drawMultiPolygon(MultiPolygon, type){
             for(let polygon of MultiPolygon.geometry.coordinates){
                 for(let geometry of polygon){
-                    drawLine(geometry);
+                    drawLine(geometry, type);
                 }
             }
         }
 
-        function drawGEOJSON(polyData){
+        function drawGEOJSONPoints(pointData, type){
+            for(let point of pointData.features){
+                drawPoint( [point.properties.LONGITUDE, point.properties.LATITUDE], point.properties.POP_MAX, type );
+            }
+        }
+
+        function drawGEOJSONPolygons(polyData, type){
             for(let polygon of polyData.features){
-                // console.log(polygon);
                 if(polygon.geometry.type == "Polygon"){
-                    drawPolygon(polygon);
+                    drawPolygon( polygon, type );
                 }
                 if(polygon.geometry.type == "MultiPolygon"){
-                    drawMultiPolygon( polygon);
+                    drawMultiPolygon( polygon, type );
                 }
             }
         }
 
         function init(){
-            threeBackground.style.backgroundImage = `radial-gradient(circle, rgba(255,255,255,1) 0%, rgba(0,0,0,1) 80%)`;
+            threeBackground.style.backgroundImage = `radial-gradient(circle, rgba(255,255,150,1) 0%, rgba(0,0,0,1) 90%)`;
 
             clock = new THREE.Clock();
 
@@ -152,30 +175,52 @@
             // scene.add( axesHelper );
 
             controls = new OrbitControls( camera, renderer.domElement );
+            controls.dampingFactor = 10;
+            controls.enablePan = false;
+            controls.minDistance = 35;
+            controls.autoRotate = true;
 
-            fetch('./geojson/land.json', { cache: "force-cache" }).then(response => {
+        }
+
+        async function loadData(){
+            await fetch('./geojson/places.json', { cache: "force-cache" }).then(response => {
                     return response.json();
                 }).then(data => {
-                    drawGEOJSON(data);
+                    drawGEOJSONPoints(data, "place");
                 }).catch(err => {
             });
 
-            fetch('./geojson/lakes.json', { cache: "force-cache" }).then(response => {
+            await fetch('./geojson/land.json', { cache: "force-cache" }).then(response => {
                     return response.json();
                 }).then(data => {
-                    drawGEOJSON(data);
+                    drawGEOJSONPolygons(data, "land");
                 }).catch(err => {
             });
 
+            // await fetch('./geojson/lakes.json', { cache: "force-cache" }).then(response => {
+            //         return response.json();
+            //     }).then(data => {
+            //         drawGEOJSONPolygons(data, "water");
+            //     }).catch(err => {
+            // });
+
+            await fetch('./geojson/cities.json', { cache: "force-cache" }).then(response => {
+                    return response.json();
+                }).then(data => {
+                    drawGEOJSONPolygons(data, "habitation");
+                }).catch(err => {
+            });
         }
         
         function animate() {
             requestAnimationFrame( animate );
             renderer.render( scene, camera );
+            controls.update();
         }
         
         init();
         animate();
+        loadData();
 
         window.addEventListener('resize', event => {
             camera.aspect = window.innerWidth / window.innerHeight;
@@ -185,10 +230,9 @@
 
         let scrollFactor = 1;
         window.addEventListener("wheel", event => {
-            console.info(controls.getDistance());
             let scrollFactor = controls.getDistance() / 10;
             threeBackground.style.backgroundImage = '';
-            threeBackground.style.backgroundImage = `radial-gradient(circle, rgba(255,255,255,1) ${0}%, rgba(0,0,0,1) ${80-scrollFactor}%)`;
+            threeBackground.style.backgroundImage = `radial-gradient(circle, rgba(255,255,150,1) ${0}%, rgba(0,0,0,1) ${90-scrollFactor}%)`;
         });
 
     </script>
